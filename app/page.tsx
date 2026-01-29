@@ -4,7 +4,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
 import { motion, Variants } from "framer-motion";
-import { Camera, Sparkles } from "lucide-react";
+import { Camera, Eye, EyeOff, Sparkles, Trash2 } from "lucide-react";
 import { Caveat } from "next/font/google";
 
 const handwritten = Caveat({
@@ -21,6 +21,7 @@ type Memory = {
 };
 
 const STORAGE_KEY = "vibevault.memories.v1";
+const ALWAYS_VISIBLE_KEY = "vibevault.cardsAlwaysVisible";
 
 function AddMemoryBar({
   onAdd,
@@ -103,12 +104,20 @@ function AddMemoryBar({
   );
 }
 
-const cardFloatVariants: Variants = {
+const cardAlwaysVisibleVariants: Variants = {
   idle: (index: number) => ({
     opacity: 1,
+    y: 0,
+    transition: { delay: index * 0.05 },
+  }),
+};
+
+const cardBreatheVariants: Variants = {
+  idle: (index: number) => ({
+    opacity: [1, 0.82, 1],
     y: [0, -6, 0],
     transition: {
-      duration: 7,
+      duration: 5,
       repeat: Infinity,
       repeatType: "mirror",
       ease: "easeInOut",
@@ -120,31 +129,48 @@ const cardFloatVariants: Variants = {
 function PolaroidCard({
   memory,
   index,
+  alwaysVisible,
+  onRemove,
 }: {
   memory: Memory;
   index: number;
+  alwaysVisible: boolean;
+  onRemove: (id: string) => void;
 }) {
+  const variants = alwaysVisible ? cardAlwaysVisibleVariants : cardBreatheVariants;
   return (
     <motion.article
       layout
       custom={index}
-      variants={cardFloatVariants}
-      initial={{ opacity: 0, y: 18, rotate: memory.rotation }}
+      variants={variants}
+      initial={{ opacity: alwaysVisible ? 1 : 0, y: alwaysVisible ? 0 : 18, rotate: memory.rotation }}
       animate="idle"
       whileHover={{
         scale: 1.06,
-        y: -12,
+        y: alwaysVisible ? 0 : -12,
         rotate: 0,
         boxShadow: "0 26px 80px rgba(15,23,42,0.55)",
       }}
       transition={{
-        opacity: { duration: 0.4, ease: "easeOut" },
+        opacity: { duration: alwaysVisible ? 0 : 0.4, ease: "easeOut" },
         layout: { type: "spring", stiffness: 260, damping: 26 },
       }}
       className="group pointer-events-auto cursor-pointer select-none"
       style={{ rotate: `${memory.rotation}deg` }}
     >
       <div className="relative flex h-full flex-col rounded-[1.75rem] bg-white/98 p-3 pb-6 shadow-[0_18px_44px_rgba(15,23,42,0.32)] ring-1 ring-zinc-100/80 transition-transform">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove(memory.id);
+          }}
+          className="absolute right-2 top-2 z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-amber-200 bg-amber-50 text-amber-700 shadow-md transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+          title="Remove this memory"
+          aria-label="Remove this memory"
+        >
+          <Trash2 className="h-4 w-4" strokeWidth={2.5} />
+        </button>
         <div className="relative overflow-hidden rounded-[1.25rem] border border-zinc-100 bg-zinc-100/70">
           <div className="relative aspect-[4/5] w-full">
             <Image
@@ -169,6 +195,7 @@ function PolaroidCard({
 export default function Home() {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [hasHydrated, setHasHydrated] = useState(false);
+  const [cardsAlwaysVisible, setCardsAlwaysVisible] = useState(false);
 
   // Hydrate from localStorage on mount (run first, then mark hydrated)
   useEffect(() => {
@@ -190,6 +217,8 @@ export default function Home() {
           );
         }
       }
+      const stored = window.localStorage.getItem(ALWAYS_VISIBLE_KEY);
+      if (stored === "true") setCardsAlwaysVisible(true);
     } catch {
       // ignore invalid localStorage contents
     }
@@ -205,6 +234,15 @@ export default function Home() {
       // ignore quota issues
     }
   }, [hasHydrated, memories]);
+
+  useEffect(() => {
+    if (!hasHydrated || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(ALWAYS_VISIBLE_KEY, String(cardsAlwaysVisible));
+    } catch {
+      // ignore
+    }
+  }, [hasHydrated, cardsAlwaysVisible]);
 
   function handleAddMemory(payload: { imageUrl: string; caption: string }) {
     const rotation = (Math.random() - 0.5) * 16; // -8deg to 8deg
@@ -222,6 +260,10 @@ export default function Home() {
     };
 
     setMemories((prev) => [newMemory, ...prev]);
+  }
+
+  function handleRemoveMemory(id: string) {
+    setMemories((prev) => prev.filter((m) => m.id !== id));
   }
 
   return (
@@ -252,7 +294,25 @@ export default function Home() {
               browser.
             </p>
           </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-amber-900/70 sm:flex-col sm:items-end sm:text-right">
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-amber-900/70 sm:flex-col sm:items-end sm:text-right">
+            <button
+              type="button"
+              onClick={() => setCardsAlwaysVisible((v) => !v)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-amber-200/80 bg-white/80 px-3 py-2 shadow transition hover:border-amber-300 hover:bg-amber-50/90"
+              title={cardsAlwaysVisible ? "Cards always visible (click to use fade)" : "Cards fade in/out (click to keep always visible)"}
+            >
+              {cardsAlwaysVisible ? (
+                <>
+                  <Eye className="h-4 w-4 text-amber-600" />
+                  <span className="font-medium">Cards always visible</span>
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-4 w-4 text-amber-500" />
+                  <span className="font-medium">Cards breathe</span>
+                </>
+              )}
+            </button>
             <div className="inline-flex items-center gap-2 rounded-2xl bg-white/80 px-3 py-2 shadow">
               <Sparkles className="h-4 w-4 text-amber-500" />
               <span className="font-medium">
@@ -276,7 +336,13 @@ export default function Home() {
           ) : (
             <div className="mt-3 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {memories.map((memory, index) => (
-                <PolaroidCard key={memory.id} memory={memory} index={index} />
+                <PolaroidCard
+                  key={memory.id}
+                  memory={memory}
+                  index={index}
+                  alwaysVisible={cardsAlwaysVisible}
+                  onRemove={handleRemoveMemory}
+                />
               ))}
             </div>
           )}
