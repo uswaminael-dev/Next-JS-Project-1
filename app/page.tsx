@@ -30,21 +30,25 @@ function AddMemoryBar({
   const [imageUrl, setImageUrl] = useState("");
   const [caption, setCaption] = useState("");
 
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  function submitMemory() {
     const trimmedUrl = imageUrl.trim();
     const trimmedCaption = caption.trim();
     if (!trimmedUrl) return;
-
     onAdd({ imageUrl: trimmedUrl, caption: trimmedCaption });
     setImageUrl("");
     setCaption("");
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    submitMemory();
   }
 
   const isDisabled = !imageUrl.trim();
 
   return (
     <motion.form
+      noValidate
       onSubmit={handleSubmit}
       className="relative flex flex-col gap-3 rounded-2xl border border-amber-200/60 bg-amber-50/80 p-3 shadow-[0_16px_50px_rgba(148,81,15,0.18)] backdrop-blur-md sm:flex-row sm:items-center sm:gap-4 sm:p-4"
       initial={{ opacity: 0, y: 16 }}
@@ -60,8 +64,9 @@ function AddMemoryBar({
           Image URL
         </label>
         <input
-          type="url"
-          placeholder="Paste an image URL you love..."
+          type="text"
+          inputMode="url"
+          placeholder="Paste an image URL (e.g. https://...)"
           value={imageUrl}
           onChange={(e) => setImageUrl(e.target.value)}
           className="w-full rounded-xl border border-amber-200/80 bg-white/90 px-3 py-2.5 text-sm text-amber-950 placeholder:text-amber-300 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-200/80"
@@ -82,8 +87,9 @@ function AddMemoryBar({
       </div>
       <div className="flex items-end pt-2 sm:pt-7">
         <motion.button
-          type="submit"
+          type="button"
           disabled={isDisabled}
+          onClick={submitMemory}
           whileTap={!isDisabled ? { scale: 0.96, y: 1 } : undefined}
           className="inline-flex items-center gap-2 rounded-2xl border border-amber-700/80 bg-amber-600 px-4 py-2.5 text-sm font-semibold text-amber-50 shadow-[0_14px_32px_rgba(146,64,14,0.6)] transition disabled:cursor-not-allowed disabled:border-amber-200 disabled:bg-amber-200/80 disabled:text-amber-500 hover:bg-amber-700 hover:border-amber-800"
         >
@@ -99,6 +105,7 @@ function AddMemoryBar({
 
 const cardFloatVariants: Variants = {
   idle: (index: number) => ({
+    opacity: 1,
     y: [0, -6, 0],
     transition: {
       duration: 7,
@@ -131,6 +138,7 @@ function PolaroidCard({
         boxShadow: "0 26px 80px rgba(15,23,42,0.55)",
       }}
       transition={{
+        opacity: { duration: 0.4, ease: "easeOut" },
         layout: { type: "spring", stiffness: 260, damping: 26 },
       }}
       className="group pointer-events-auto cursor-pointer select-none"
@@ -143,6 +151,7 @@ function PolaroidCard({
               src={memory.imageUrl}
               alt={memory.caption || "Polaroid memory"}
               fill
+              unoptimized
               className="object-cover transition duration-500 group-hover:scale-105"
             />
           </div>
@@ -159,39 +168,43 @@ function PolaroidCard({
 
 export default function Home() {
   const [memories, setMemories] = useState<Memory[]>([]);
+  const [hasHydrated, setHasHydrated] = useState(false);
 
-  // Hydrate from localStorage on mount
+  // Hydrate from localStorage on mount (run first, then mark hydrated)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Memory[];
-      if (!Array.isArray(parsed)) return;
-      setMemories(
-        parsed.map((m, index) => ({
-          ...m,
-          rotation:
-            typeof m.rotation === "number"
-              ? m.rotation
-              : (Math.random() - 0.5) * 14,
-          createdAt: m.createdAt ?? Date.now() - index * 1000,
-        })),
-      );
+      if (raw) {
+        const parsed = JSON.parse(raw) as Memory[];
+        if (Array.isArray(parsed)) {
+          setMemories(
+            parsed.map((m, index) => ({
+              ...m,
+              rotation:
+                typeof m.rotation === "number"
+                  ? m.rotation
+                  : (Math.random() - 0.5) * 14,
+              createdAt: m.createdAt ?? Date.now() - index * 1000,
+            })),
+          );
+        }
+      }
     } catch {
       // ignore invalid localStorage contents
     }
+    setHasHydrated(true);
   }, []);
 
-  // Persist to localStorage when memories change
+  // Persist to localStorage only after hydration (avoids wiping with [] on refresh)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!hasHydrated || typeof window === "undefined") return;
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
     } catch {
       // ignore quota issues
     }
-  }, [memories]);
+  }, [hasHydrated, memories]);
 
   function handleAddMemory(payload: { imageUrl: string; caption: string }) {
     const rotation = (Math.random() - 0.5) * 16; // -8deg to 8deg
