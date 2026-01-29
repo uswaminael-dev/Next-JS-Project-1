@@ -90,7 +90,7 @@ function AddMemoryBar({
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/90 text-amber-50">
             <Camera className="h-4 w-4" />
           </span>
-          <span className="text-sm tracking-tight">Snap 📸</span>
+          <span className="text-sm tracking-tight">Snap</span>
         </motion.button>
       </div>
     </motion.form>
