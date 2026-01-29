@@ -3,7 +3,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 import { Camera, Sparkles } from "lucide-react";
 import { Caveat } from "next/font/google";
 
@@ -97,7 +97,7 @@ function AddMemoryBar({
   );
 }
 
-const cardFloatVariants = {
+const cardFloatVariants: Variants = {
   idle: (index: number) => ({
     y: [0, -6, 0],
     transition: {
